@@ -1,0 +1,9 @@
+[environments.dev]
+theme = "156146892954"
+store = "nca2zy-y4"
+
+[environments.ignore-settings]
+theme = "156146892954"
+store = "nca2zy-y4"
+ignore = ["sections/*.json", "templates/*", "config/*", "locales/*"]
+allow-live = true
