@@ -124,29 +124,30 @@
     text-wrap: balance;
   }
 
+  /* Baseline alignment, not centre: the bio link carries a bottom border and its
+     padding, so centring the boxes would lift its text above the count. */
   .artist-hero__meta {
     display: flex;
-    align-items: center;
+    align-items: baseline;
     flex-wrap: wrap;
-    gap: 1.625rem;
+    column-gap: 1.625rem;
+    row-gap: 0.75rem;
+    font-size: 0.75rem;
+    letter-spacing: 0.1em;
+    line-height: 1;
+    text-transform: uppercase;
   }
 
   .artist-hero__bio-link {
     color: currentcolor;
-    font-size: 0.75rem;
     font-weight: 700;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
     text-decoration: none;
     border-block-end: 2px solid currentcolor;
     padding-block-end: 5px;
   }
 
   .artist-hero__count {
-    font-size: 0.75rem;
-    font-weight: 600;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
+    font-weight: 700;
     opacity: 0.6;
   }
 
