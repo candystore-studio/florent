@@ -1,0 +1,241 @@
+{%- doc -%}
+  Hover overlay for product cards. Reveals the product title and a view icon over the
+  product image on pointer hover or keyboard focus.
+
+  The overlay is decorative and does not capture pointer events, so clicks fall through
+  to the card's existing product link. The title is exposed to assistive technology by
+  that link's aria-label, so the overlay is hidden from the accessibility tree.
+{%- enddoc -%}
+
+{% liquid
+  assign product = closest.product
+  assign block_settings = block.settings
+
+  assign title = product.title
+  if product == blank
+    assign title = 'placeholders.product_title' | t
+  endif
+
+  assign overlay_classes = 'artist-card-overlay artist-card-overlay--' | append: block_settings.content_position
+  if block_settings.show_on_mobile
+    assign overlay_classes = overlay_classes | append: ' artist-card-overlay--mobile-visible'
+  endif
+%}
+
+<div
+  class="{{ overlay_classes }}"
+  style="
+    --artist-card-overlay-background: {{ block_settings.overlay_color }};
+    --artist-card-overlay-color: {{ block_settings.text_color }};
+    --artist-card-overlay-font-size: {{ block_settings.font_size }};
+    --artist-card-overlay-icon-size: {{ block_settings.icon_size }}px;
+  "
+  aria-hidden="true"
+  {{ block.shopify_attributes }}
+>
+  <div class="artist-card-overlay__inner">
+    {%- if block_settings.icon != 'none' -%}
+      <svg
+        class="artist-card-overlay__icon icon-default"
+        focusable="false"
+        xmlns="http://www.w3.org/2000/svg"
+        width="{{ block_settings.icon_size }}"
+        height="{{ block_settings.icon_size }}"
+        viewBox="0 0 20 20"
+      >
+        {%- render 'icon', icon: block_settings.icon -%}
+      </svg>
+    {%- endif -%}
+    <span class="artist-card-overlay__title">{{ title | escape }}</span>
+  </div>
+</div>
+
+{% stylesheet %}
+  .artist-card-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: var(--layer-raised);
+    display: flex;
+    padding: var(--padding-md);
+    opacity: 0;
+    pointer-events: none;
+    color: var(--artist-card-overlay-color, #ffffff);
+    background-color: var(--artist-card-overlay-background, rgb(0 0 0 / 0.35));
+  }
+
+  .artist-card-overlay--center {
+    align-items: center;
+    justify-content: center;
+  }
+
+  .artist-card-overlay--bottom {
+    align-items: flex-end;
+    justify-content: center;
+  }
+
+  .artist-card-overlay__inner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--padding-sm);
+    text-align: center;
+    max-width: 100%;
+  }
+
+  .artist-card-overlay__title {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
+    font-size: var(--artist-card-overlay-font-size, var(--font-size--md));
+    line-height: var(--line-height--body-normal);
+  }
+
+  .artist-card-overlay__icon {
+    flex-shrink: 0;
+    width: var(--artist-card-overlay-icon-size, 24px);
+    height: var(--artist-card-overlay-icon-size, 24px);
+  }
+
+  product-card:is(:hover, :focus-within) .artist-card-overlay {
+    opacity: 1;
+  }
+
+  /* A card with a hover overlay sends the visitor to the product page, so the
+     quick-add button would sit under the overlay and compete with that click. */
+  .product-card__content:has(.artist-card-overlay) quick-add-component {
+    display: none;
+  }
+
+  /* Touch devices get no hover state, so only show the overlay when asked to. */
+  @media (hover: none) {
+    .artist-card-overlay {
+      display: none;
+    }
+
+    .artist-card-overlay--mobile-visible {
+      display: flex;
+      opacity: 1;
+    }
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .artist-card-overlay {
+      transition: opacity var(--animation-speed) var(--animation-easing);
+    }
+  }
+{% endstylesheet %}
+
+{% schema %}
+{
+  "name": "Hover overlay",
+  "tag": null,
+  "settings": [
+    {
+      "type": "paragraph",
+      "content": "Shows the product title and an icon over the product image on hover. Clicking the card opens the product page."
+    },
+    {
+      "type": "select",
+      "id": "content_position",
+      "label": "Position",
+      "options": [
+        {
+          "value": "center",
+          "label": "Centre"
+        },
+        {
+          "value": "bottom",
+          "label": "Bottom"
+        }
+      ],
+      "default": "center"
+    },
+    {
+      "type": "select",
+      "id": "icon",
+      "label": "Icon",
+      "options": [
+        {
+          "value": "none",
+          "label": "None"
+        },
+        {
+          "value": "eye",
+          "label": "View"
+        },
+        {
+          "value": "arrow",
+          "label": "Arrow"
+        }
+      ],
+      "default": "eye"
+    },
+    {
+      "type": "range",
+      "id": "icon_size",
+      "label": "Icon size",
+      "min": 12,
+      "max": 64,
+      "step": 2,
+      "unit": "px",
+      "default": 28
+    },
+    {
+      "type": "select",
+      "id": "font_size",
+      "label": "Title size",
+      "options": [
+        {
+          "value": "var(--font-size--sm)",
+          "label": "Small"
+        },
+        {
+          "value": "var(--font-size--md)",
+          "label": "Medium"
+        },
+        {
+          "value": "var(--font-size--lg)",
+          "label": "Large"
+        },
+        {
+          "value": "var(--font-size--xl)",
+          "label": "Extra large"
+        }
+      ],
+      "default": "var(--font-size--md)"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_on_mobile",
+      "label": "Always show on touch devices",
+      "info": "Touch devices have no hover state. Turn this on to show the title and icon at all times on mobile.",
+      "default": false
+    },
+    {
+      "type": "header",
+      "content": "t:content.appearance"
+    },
+    {
+      "type": "color",
+      "id": "overlay_color",
+      "label": "Overlay colour",
+      "alpha": true,
+      "default": "#00000059"
+    },
+    {
+      "type": "color",
+      "id": "text_color",
+      "label": "Text colour",
+      "default": "#ffffff"
+    }
+  ],
+  "presets": [
+    {
+      "name": "Hover overlay",
+      "category": "t:categories.product"
+    }
+  ]
+}
+{% endschema %}
