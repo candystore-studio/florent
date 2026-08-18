@@ -1,10 +1,18 @@
 {%- doc -%}
-  Hover overlay for product cards. Reveals the product title and a view icon over the
-  product image on pointer hover or keyboard focus.
+  Card meta bar for artist product cards. Shows title, price, an optional star rating
+  and a "view work" arrow in a bar anchored to the bottom of the artwork.
 
-  The overlay is decorative and does not capture pointer events, so clicks fall through
-  to the card's existing product link. The title is exposed to assistive technology by
-  that link's aria-label, so the overlay is hidden from the accessibility tree.
+  On hover-capable devices the bar fades in and rises over the artwork on pointer
+  hover or keyboard focus (or stays visible when "Always visible" is selected). On
+  touch devices it renders statically below the artwork instead, since there is no
+  hover state.
+
+  The bar is always in the DOM — only opacity and transform change — so the title,
+  price and rating stay crawlable and available to assistive technology. It does not
+  capture pointer events; clicks fall through to the card's product link.
+
+  The rating reads the standard `reviews.rating` metafields and renders only when a
+  rating exists, so cards stay clean until a review app is installed and populated.
 {%- enddoc -%}
 
 {% liquid
@@ -16,202 +24,272 @@
     assign title = 'placeholders.product_title' | t
   endif
 
-  assign overlay_classes = 'artist-card-overlay artist-card-overlay--' | append: block_settings.content_position
-  if block_settings.show_on_mobile
-    assign overlay_classes = overlay_classes | append: ' artist-card-overlay--mobile-visible'
+  assign rating = product.metafields.reviews.rating.value.rating
+  assign scale_max = product.metafields.reviews.rating.value.scale_max | default: 5
+  assign rating_count = product.metafields.reviews.rating_count | default: 0
+
+  assign rating_percent = 0
+  if rating != blank
+    assign rating_percent = rating | times: 100.0 | divided_by: scale_max
+  endif
+
+  assign meta_classes = 'artist-card-meta'
+  if block_settings.reveal == 'always'
+    assign meta_classes = meta_classes | append: ' artist-card-meta--always'
   endif
 %}
 
 <div
-  class="{{ overlay_classes }}"
+  class="{{ meta_classes }}"
   style="
-    --artist-card-overlay-background: {{ block_settings.overlay_color }};
-    --artist-card-overlay-color: {{ block_settings.text_color }};
-    --artist-card-overlay-font-size: {{ block_settings.font_size }};
-    --artist-card-overlay-icon-size: {{ block_settings.icon_size }}px;
+    --artist-card-meta-background: {{ block_settings.bar_background }};
+    --artist-card-meta-color: {{ block_settings.text_color }};
+    --artist-card-meta-title-color: {{ block_settings.title_color }};
   "
-  aria-hidden="true"
   {{ block.shopify_attributes }}
 >
-  <div class="artist-card-overlay__inner">
-    {%- if block_settings.icon != 'none' -%}
-      <svg
-        class="artist-card-overlay__icon icon-default"
-        focusable="false"
-        xmlns="http://www.w3.org/2000/svg"
-        width="{{ block_settings.icon_size }}"
-        height="{{ block_settings.icon_size }}"
-        viewBox="0 0 20 20"
-      >
-        {%- render 'icon', icon: block_settings.icon -%}
-      </svg>
+  <div class="artist-card-meta__info">
+    <span class="artist-card-meta__title">{{ title | escape }}</span>
+    {%- if block_settings.show_price and product != blank -%}
+      <span class="artist-card-meta__price">{{ product.price | money }}</span>
     {%- endif -%}
-    <span class="artist-card-overlay__title">{{ title | escape }}</span>
+  </div>
+
+  <div class="artist-card-meta__aside">
+    {%- if block_settings.show_rating and rating != blank -%}
+      <span class="artist-card-meta__rating">
+        <span
+          class="artist-card-meta__stars"
+          role="img"
+          aria-label="{{ 'accessibility.rating' | t: rating: rating }}"
+        >
+          <span class="artist-card-meta__stars-track" aria-hidden="true">★★★★★</span>
+          <span
+            class="artist-card-meta__stars-fill"
+            aria-hidden="true"
+            style="inline-size: {{ rating_percent }}%"
+          >
+            ★★★★★
+          </span>
+        </span>
+        <span class="artist-card-meta__rating-count">({{ rating_count }})</span>
+      </span>
+    {%- endif -%}
+
+    {%- if block_settings.show_view_label -%}
+      <span class="artist-card-meta__view">
+        {{ block_settings.view_label | escape }}
+        <svg
+          class="artist-card-meta__view-arrow"
+          focusable="false"
+          aria-hidden="true"
+          xmlns="http://www.w3.org/2000/svg"
+          width="19"
+          height="19"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M4 12h14"></path>
+          <path d="M12 5l7 7-7 7"></path>
+        </svg>
+      </span>
+    {%- endif -%}
   </div>
 </div>
 
 {% stylesheet %}
-  .artist-card-overlay {
-    position: absolute;
-    inset: 0;
-    z-index: var(--layer-raised);
+  .artist-card-meta {
     display: flex;
-    padding: var(--padding-md);
-    opacity: 0;
-    pointer-events: none;
-    color: var(--artist-card-overlay-color, #ffffff);
-    background-color: var(--artist-card-overlay-background, rgb(0 0 0 / 0.35));
-  }
-
-  .artist-card-overlay--center {
     align-items: center;
-    justify-content: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.25rem;
+    pointer-events: none;
+    color: var(--artist-card-meta-color, currentcolor);
   }
 
-  .artist-card-overlay--bottom {
-    align-items: flex-end;
-    justify-content: center;
-  }
-
-  .artist-card-overlay__inner {
+  .artist-card-meta__info {
     display: flex;
     flex-direction: column;
-    align-items: center;
-    gap: var(--padding-sm);
-    text-align: center;
-    max-width: 100%;
+    gap: 0.4375rem;
+    min-width: 0;
   }
 
-  .artist-card-overlay__title {
+  .artist-card-meta__title {
+    color: var(--artist-card-meta-title-color, currentcolor);
+    font-size: 0.8125rem;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
     display: -webkit-box;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
     line-clamp: 2;
     overflow: hidden;
-    font-size: var(--artist-card-overlay-font-size, var(--font-size--md));
-    line-height: var(--line-height--body-normal);
   }
 
-  .artist-card-overlay__icon {
+  .artist-card-meta__price {
+    font-size: 0.8125rem;
+    font-weight: 700;
+  }
+
+  .artist-card-meta__aside {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
     flex-shrink: 0;
-    width: var(--artist-card-overlay-icon-size, 24px);
-    height: var(--artist-card-overlay-icon-size, 24px);
   }
 
-  product-card:is(:hover, :focus-within) .artist-card-overlay {
-    opacity: 1;
+  .artist-card-meta__rating {
+    display: flex;
+    align-items: center;
+    gap: 0.4375rem;
   }
 
-  /* A card with a hover overlay sends the visitor to the product page, so the
-     quick-add button would sit under the overlay and compete with that click. */
-  .product-card__content:has(.artist-card-overlay) quick-add-component {
+  .artist-card-meta__stars {
+    position: relative;
+    display: inline-block;
+    font-size: 0.75rem;
+    letter-spacing: 0.16em;
+    line-height: 1;
+  }
+
+  .artist-card-meta__stars-track {
+    opacity: 0.35;
+  }
+
+  .artist-card-meta__stars-fill {
+    position: absolute;
+    inset-block-start: 0;
+    inset-inline-start: 0;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+
+  .artist-card-meta__rating-count {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    opacity: 0.6;
+  }
+
+  .artist-card-meta__view {
+    display: flex;
+    align-items: center;
+    gap: 0.5625rem;
+    font-size: 0.6875rem;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .artist-card-meta__view-arrow {
+    flex-shrink: 0;
+  }
+
+  /* A card with a meta bar sends the visitor to the product page, so the
+     quick-add button would compete with that click. */
+  .product-card__content:has(.artist-card-meta) quick-add-component {
     display: none;
   }
 
-  /* Touch devices get no hover state, so only show the overlay when asked to. */
-  @media (hover: none) {
-    .artist-card-overlay {
-      display: none;
+  /* Hover-capable devices: bar overlays the bottom of the artwork and reveals
+     on hover or keyboard focus. Only opacity and transform change. */
+  @media (hover: hover) {
+    .artist-card-meta {
+      position: absolute;
+      inset-block-end: 0;
+      inset-inline: 0;
+      z-index: var(--layer-raised);
+      padding: 1.125rem 1.5rem;
+      background: var(--artist-card-meta-background, rgb(255 255 255 / 0.95));
+      border-block-start: 1px solid rgb(0 0 0 / 0.12);
+      opacity: 0;
+      transform: translateY(10px);
     }
 
-    .artist-card-overlay--mobile-visible {
-      display: flex;
+    .artist-card-meta--always,
+    product-card:is(:hover, :focus-within) .artist-card-meta {
       opacity: 1;
+      transform: translateY(0);
+    }
+
+    product-card:is(:hover, :focus-within) .artist-card-meta__view-arrow {
+      transform: translateX(4px);
+    }
+  }
+
+  /* Touch devices: no hover state, so the meta sits permanently below the artwork. */
+  @media (hover: none) {
+    .artist-card-meta {
+      padding-block-start: 0.75rem;
     }
   }
 
   @media (prefers-reduced-motion: no-preference) {
-    .artist-card-overlay {
-      transition: opacity var(--animation-speed) var(--animation-easing);
+    .artist-card-meta {
+      transition: opacity 0.18s ease, transform 0.18s ease;
+    }
+
+    .artist-card-meta__view-arrow {
+      transition: transform 0.18s ease;
     }
   }
 {% endstylesheet %}
 
 {% schema %}
 {
-  "name": "Hover overlay",
+  "name": "Card meta bar",
   "tag": null,
   "settings": [
     {
       "type": "paragraph",
-      "content": "Shows the product title and an icon over the product image on hover. Clicking the card opens the product page."
+      "content": "Shows title, price, rating and a view label over the artwork on hover. On touch devices it sits below the artwork instead. Clicking the card opens the product page."
     },
     {
       "type": "select",
-      "id": "content_position",
-      "label": "Position",
+      "id": "reveal",
+      "label": "Reveal",
       "options": [
         {
-          "value": "center",
-          "label": "Centre"
+          "value": "hover",
+          "label": "On hover"
         },
         {
-          "value": "bottom",
-          "label": "Bottom"
+          "value": "always",
+          "label": "Always visible"
         }
       ],
-      "default": "center"
-    },
-    {
-      "type": "select",
-      "id": "icon",
-      "label": "Icon",
-      "options": [
-        {
-          "value": "none",
-          "label": "None"
-        },
-        {
-          "value": "eye",
-          "label": "View"
-        },
-        {
-          "value": "arrow",
-          "label": "Arrow"
-        }
-      ],
-      "default": "eye"
-    },
-    {
-      "type": "range",
-      "id": "icon_size",
-      "label": "Icon size",
-      "min": 12,
-      "max": 64,
-      "step": 2,
-      "unit": "px",
-      "default": 28
-    },
-    {
-      "type": "select",
-      "id": "font_size",
-      "label": "Title size",
-      "options": [
-        {
-          "value": "var(--font-size--sm)",
-          "label": "Small"
-        },
-        {
-          "value": "var(--font-size--md)",
-          "label": "Medium"
-        },
-        {
-          "value": "var(--font-size--lg)",
-          "label": "Large"
-        },
-        {
-          "value": "var(--font-size--xl)",
-          "label": "Extra large"
-        }
-      ],
-      "default": "var(--font-size--md)"
+      "default": "hover"
     },
     {
       "type": "checkbox",
-      "id": "show_on_mobile",
-      "label": "Always show on touch devices",
-      "info": "Touch devices have no hover state. Turn this on to show the title and icon at all times on mobile.",
-      "default": false
+      "id": "show_price",
+      "label": "Show price",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "show_rating",
+      "label": "Show star rating",
+      "info": "Only shows once the product has a review rating. Requires a review app that writes the standard reviews metafields.",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "show_view_label",
+      "label": "Show view label",
+      "default": true
+    },
+    {
+      "type": "text",
+      "id": "view_label",
+      "label": "View label",
+      "default": "View work"
     },
     {
       "type": "header",
@@ -219,21 +297,27 @@
     },
     {
       "type": "color",
-      "id": "overlay_color",
-      "label": "Overlay colour",
+      "id": "bar_background",
+      "label": "Bar background",
       "alpha": true,
-      "default": "#00000059"
+      "default": "#FFFFFFF2"
     },
     {
       "type": "color",
       "id": "text_color",
       "label": "Text colour",
-      "default": "#ffffff"
+      "default": "#232323"
+    },
+    {
+      "type": "color",
+      "id": "title_color",
+      "label": "Title colour",
+      "default": "#C14545"
     }
   ],
   "presets": [
     {
-      "name": "Hover overlay",
+      "name": "Card meta bar",
       "category": "t:categories.product"
     }
   ]

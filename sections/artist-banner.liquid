@@ -1,259 +1,283 @@
-{%- doc -%}
-  Artist banner. A full-bleed hero that takes its image from the collection image, so a
-  new artist collection gets a banner without any theme or template change.
+{% comment %}
+  Artist hero. Solid-colour collection header matching the Florent collection redesign:
+  breadcrumbs, collection title as the page h1, a "read the artist bio" anchor link with
+  the works count beside it, and the collection description as an indexable intro
+  paragraph in a second column on desktop.
 
-  Falls back to the custom image picker when the collection has no image, or when the
-  section is used outside a collection template.
-
-  Markup mirrors `snippets/section.liquid` so the banner is visually identical to a
-  standard section. It is a separate section because `background_image` is an
-  `image_picker` setting, and image_picker values are not evaluated as Liquid — a
-  collection image cannot be referenced from a JSON template.
-{%- enddoc -%}
+  The description excerpt is plain text (strip_html + truncatewords); the full
+  description renders in the bio section below the product grid, which the bio link
+  anchors to. Every label and toggle is a section setting so it can be adjusted per
+  template without code changes.
+{% endcomment %}
 
 {% liquid
-  assign banner_image = section.settings.background_image
+  assign hero_collection = closest.collection | default: collection
 
-  if section.settings.image_source == 'collection'
-    assign collection_image = closest.collection.featured_image | default: collection.featured_image
-    assign banner_image = collection_image | default: section.settings.background_image
+  assign works_count = hero_collection.products_count
+  assign count_label = section.settings.count_label_plural
+  if works_count == 1
+    assign count_label = section.settings.count_label_singular
   endif
 
-  assign skip_contrast = false
-  if banner_image != blank
-    assign skip_contrast = true
+  assign description_excerpt = ''
+  if hero_collection.description != blank
+    assign description_excerpt = hero_collection.description | strip_html | truncatewords: section.settings.description_word_limit
   endif
 %}
 
-{% capture children %}
-  {% content_for 'blocks' %}
-{% endcapture %}
-
 {% render 'contrast-override',
   background_color: section.settings.background_color,
-  section_id: section.id,
-  skip_contrast: skip_contrast
+  section_id: section.id
 %}
 
 <div class="section-background color-custom-{{ section.id }}"></div>
 <div
   class="section section--{{ section.settings.section_width }} color-custom-{{ section.id }}"
   data-testid="ui-test-section"
-
   {% if request.visual_preview_mode %}
     data-shopify-visual-preview
   {% endif %}
-
-  style="
-    {% if section.settings.section_height == 'custom' %}
-      --section-min-height: {{ section.settings.section_height_custom }}svh;
-    {% elsif section.settings.section_height == 'full-screen' %}
-      --section-min-height: 100svh;
-    {% elsif section.settings.section_height != '' %}
-      --section-min-height: var(--section-height-{{ section.settings.section_height }});
-    {% endif %}
-
-    {% if section.settings.section_height != '' %}
-      --section-preview-height: 600px;
-    {% endif %}
-  "
 >
-  <div class="custom-section-background">
-    {% render 'background-media',
-      background_media: 'image',
-      background_image: banner_image,
-      background_image_position: section.settings.background_image_position,
-      section: section
-    %}
-  </div>
-
   <div
-    class="border-style custom-section-content"
-    style="{% render 'border-override', settings: section.settings %}"
+    class="artist-hero spacing-style"
+    style="{% render 'spacing-style', settings: section.settings %}"
   >
-    {% if section.settings.toggle_overlay %}
-      {% render 'overlay', settings: section.settings, layer: '0' %}
-    {% endif %}
+    <div class="artist-hero__main">
+      {% if section.settings.show_breadcrumbs %}
+        <nav class="artist-hero__breadcrumbs" aria-label="Breadcrumbs">
+          <a href="{{ routes.root_url }}">{{ section.settings.breadcrumb_home_label | escape }}</a>
+          {% if section.settings.breadcrumb_parent_label != blank %}
+            <span aria-hidden="true">/</span>
+            {% if section.settings.breadcrumb_parent_link != blank %}
+              <a href="{{ section.settings.breadcrumb_parent_link }}">
+                {{- section.settings.breadcrumb_parent_label | escape -}}
+              </a>
+            {% else %}
+              <span>{{ section.settings.breadcrumb_parent_label | escape }}</span>
+            {% endif %}
+          {% endif %}
+          <span aria-hidden="true">/</span>
+          <span class="artist-hero__breadcrumb-current" aria-current="page">{{ hero_collection.title | escape }}</span>
+        </nav>
+      {% endif %}
 
-    <div
-      class="
-        spacing-style
-        layout-panel-flex
-        layout-panel-flex--{{ section.settings.content_direction }}
-        section-content-wrapper
-        {% if section.settings.vertical_on_mobile %} mobile-column{% endif %}
-      "
-      style="
-        {% render 'layout-panel-style', settings: section.settings %}
-        {% render 'spacing-style', settings: section.settings %}
-      "
-      data-testid="section-content"
-    >
-      {{ children }}
+      <h1 class="artist-hero__title">{{ hero_collection.title | escape }}</h1>
+
+      <div class="artist-hero__meta">
+        {% if section.settings.show_bio_link and hero_collection.description != blank %}
+          <a class="artist-hero__bio-link" href="#{{ section.settings.bio_anchor | escape }}">
+            {{- section.settings.bio_link_label | escape -}}
+          </a>
+        {% endif %}
+        {% if section.settings.show_count and works_count > 0 %}
+          <span class="artist-hero__count">{{ works_count }} {{ count_label | escape }}</span>
+        {% endif %}
+      </div>
     </div>
+
+    {% if section.settings.show_description and description_excerpt != blank %}
+      <p class="artist-hero__description">{{ description_excerpt }}</p>
+    {% endif %}
   </div>
 </div>
 
+{% stylesheet %}
+  .artist-hero {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: var(--gap-3xl, 4rem);
+  }
+
+  .artist-hero__main {
+    display: flex;
+    flex-direction: column;
+    gap: 1.375rem;
+    min-width: 0;
+  }
+
+  .artist-hero__breadcrumbs {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5625rem;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .artist-hero__breadcrumbs a,
+  .artist-hero__breadcrumbs > span {
+    color: currentcolor;
+    opacity: 0.62;
+    text-decoration: none;
+  }
+
+  .artist-hero__breadcrumbs a:hover,
+  .artist-hero__breadcrumbs .artist-hero__breadcrumb-current {
+    opacity: 1;
+  }
+
+  .artist-hero__title {
+    margin: 0;
+    text-wrap: balance;
+  }
+
+  .artist-hero__meta {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1.625rem;
+  }
+
+  .artist-hero__bio-link {
+    color: currentcolor;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    text-decoration: none;
+    border-block-end: 2px solid currentcolor;
+    padding-block-end: 5px;
+  }
+
+  .artist-hero__count {
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    opacity: 0.6;
+  }
+
+  .artist-hero__description {
+    margin: 0;
+    inline-size: 340px;
+    flex: none;
+    font-size: 0.875rem;
+    line-height: 1.62;
+    text-wrap: pretty;
+  }
+
+  @media screen and (max-width: 749px) {
+    .artist-hero {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: var(--gap-lg, 1.25rem);
+    }
+
+    .artist-hero__main {
+      gap: 0.875rem;
+    }
+
+    .artist-hero__description {
+      inline-size: 100%;
+    }
+  }
+{% endstylesheet %}
+
 {% schema %}
 {
-  "name": "Artist banner",
+  "name": "Artist hero",
   "class": "section-wrapper",
-  "blocks": [
-    {
-      "type": "@theme"
-    },
-    {
-      "type": "@app"
-    },
-    {
-      "type": "_divider"
-    }
-  ],
   "disabled_on": {
-    "groups": [
-      "header"
-    ]
+    "groups": ["header"]
   },
   "settings": [
     {
       "type": "header",
-      "content": "t:content.layout"
-    },
-    {
-      "type": "select",
-      "id": "content_direction",
-      "label": "t:settings.direction",
-      "options": [
-        {
-          "value": "column",
-          "label": "t:options.vertical"
-        },
-        {
-          "value": "row",
-          "label": "t:options.horizontal"
-        }
-      ],
-      "default": "column"
+      "content": "Breadcrumbs"
     },
     {
       "type": "checkbox",
-      "id": "vertical_on_mobile",
-      "label": "t:settings.vertical_on_mobile",
-      "default": true,
-      "visible_if": "{{ section.settings.content_direction == 'row' }}"
+      "id": "show_breadcrumbs",
+      "label": "Show breadcrumbs",
+      "default": true
     },
     {
-      "type": "select",
-      "id": "horizontal_alignment",
-      "label": "t:settings.alignment",
-      "options": [
-        {
-          "value": "flex-start",
-          "label": "t:options.left"
-        },
-        {
-          "value": "center",
-          "label": "t:options.center"
-        },
-        {
-          "value": "flex-end",
-          "label": "t:options.right"
-        },
-        {
-          "value": "space-between",
-          "label": "t:options.space_between"
-        }
-      ],
-      "default": "flex-start",
-      "visible_if": "{{ section.settings.content_direction == 'row' }}"
+      "type": "text",
+      "id": "breadcrumb_home_label",
+      "label": "Home label",
+      "default": "Home"
     },
     {
-      "type": "select",
-      "id": "vertical_alignment",
-      "label": "t:settings.position",
-      "options": [
-        {
-          "value": "flex-start",
-          "label": "t:options.top"
-        },
-        {
-          "value": "center",
-          "label": "t:options.center"
-        },
-        {
-          "value": "flex-end",
-          "label": "t:options.bottom"
-        }
-      ],
-      "default": "center",
-      "visible_if": "{{ section.settings.content_direction == 'row' }}"
+      "type": "text",
+      "id": "breadcrumb_parent_label",
+      "label": "Parent label",
+      "info": "Leave blank to hide the middle crumb.",
+      "default": "Artist"
     },
     {
-      "type": "checkbox",
-      "id": "align_baseline",
-      "label": "t:settings.align_baseline",
-      "default": false,
-      "visible_if": "{{ section.settings.vertical_alignment == 'flex-end' }}"
-    },
-    {
-      "type": "select",
-      "id": "horizontal_alignment_flex_direction_column",
-      "label": "t:settings.alignment",
-      "options": [
-        {
-          "value": "flex-start",
-          "label": "t:options.left"
-        },
-        {
-          "value": "center",
-          "label": "t:options.center"
-        },
-        {
-          "value": "flex-end",
-          "label": "t:options.right"
-        }
-      ],
-      "default": "flex-start",
-      "visible_if": "{{ section.settings.content_direction != 'row' }}"
-    },
-    {
-      "type": "select",
-      "id": "vertical_alignment_flex_direction_column",
-      "label": "t:settings.position",
-      "options": [
-        {
-          "value": "flex-start",
-          "label": "t:options.top"
-        },
-        {
-          "value": "center",
-          "label": "t:options.center"
-        },
-        {
-          "value": "flex-end",
-          "label": "t:options.bottom"
-        },
-        {
-          "value": "space-between",
-          "label": "t:options.space_between"
-        }
-      ],
-      "default": "center",
-      "visible_if": "{{ section.settings.content_direction == 'column' }}"
-    },
-    {
-      "type": "range",
-      "id": "gap",
-      "label": "t:settings.gap",
-      "min": 0,
-      "max": 100,
-      "step": 1,
-      "unit": "px",
-      "default": 12
+      "type": "url",
+      "id": "breadcrumb_parent_link",
+      "label": "Parent link"
     },
     {
       "type": "header",
-      "content": "t:content.size"
+      "content": "Bio link and count"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_bio_link",
+      "label": "Show bio link",
+      "info": "Hidden automatically when the collection has no description.",
+      "default": true
+    },
+    {
+      "type": "text",
+      "id": "bio_link_label",
+      "label": "Bio link label",
+      "default": "Read the artist bio"
+    },
+    {
+      "type": "text",
+      "id": "bio_anchor",
+      "label": "Bio anchor ID",
+      "info": "Must match the anchor in the bio section below the grid.",
+      "default": "artist-bio"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_count",
+      "label": "Show works count",
+      "default": true
+    },
+    {
+      "type": "text",
+      "id": "count_label_singular",
+      "label": "Count label (singular)",
+      "default": "original work"
+    },
+    {
+      "type": "text",
+      "id": "count_label_plural",
+      "label": "Count label (plural)",
+      "default": "original works"
+    },
+    {
+      "type": "header",
+      "content": "Description"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_description",
+      "label": "Show description excerpt",
+      "info": "A plain-text excerpt of the collection description. The full description renders in the bio section.",
+      "default": true
+    },
+    {
+      "type": "range",
+      "id": "description_word_limit",
+      "label": "Excerpt length",
+      "min": 10,
+      "max": 100,
+      "step": 5,
+      "unit": "wds",
+      "default": 60
+    },
+    {
+      "type": "header",
+      "content": "t:content.appearance"
     },
     {
       "type": "select",
@@ -272,203 +296,10 @@
       "default": "page-width"
     },
     {
-      "type": "select",
-      "id": "section_height",
-      "label": "t:settings.height",
-      "options": [
-        {
-          "value": "",
-          "label": "t:options.auto"
-        },
-        {
-          "value": "small",
-          "label": "t:options.small"
-        },
-        {
-          "value": "medium",
-          "label": "t:options.medium"
-        },
-        {
-          "value": "large",
-          "label": "t:options.large"
-        },
-        {
-          "value": "full-screen",
-          "label": "t:options.full_screen"
-        },
-        {
-          "value": "custom",
-          "label": "t:options.custom"
-        }
-      ],
-      "default": ""
-    },
-    {
-      "type": "range",
-      "id": "section_height_custom",
-      "label": "t:settings.custom_height",
-      "min": 0,
-      "max": 100,
-      "step": 1,
-      "default": 50,
-      "unit": "%",
-      "visible_if": "{{ section.settings.section_height == 'custom' }}"
-    },
-    {
-      "type": "header",
-      "content": "t:content.appearance"
-    },
-    {
       "type": "color",
       "id": "background_color",
       "label": "t:settings.background_color",
       "placeholder": "t:settings.default"
-    },
-    {
-      "type": "select",
-      "id": "image_source",
-      "label": "Banner image",
-      "info": "The collection image is set on the collection in the Shopify admin. New artists get a banner automatically with no theme changes.",
-      "options": [
-        {
-          "value": "collection",
-          "label": "Collection image"
-        },
-        {
-          "value": "custom",
-          "label": "Custom image"
-        }
-      ],
-      "default": "collection"
-    },
-    {
-      "type": "image_picker",
-      "id": "background_image",
-      "label": "Custom image",
-      "visible_if": "{{ section.settings.image_source == 'custom' }}",
-      "info": "Also used as a fallback when the collection has no image."
-    },
-    {
-      "type": "select",
-      "id": "background_image_position",
-      "label": "t:settings.image_position",
-      "options": [
-        {
-          "value": "cover",
-          "label": "t:options.cover"
-        },
-        {
-          "value": "fit",
-          "label": "t:options.fit"
-        }
-      ],
-      "default": "cover"
-    },
-    {
-      "type": "checkbox",
-      "id": "toggle_overlay",
-      "label": "t:settings.background_overlay"
-    },
-    {
-      "type": "color",
-      "id": "overlay_color",
-      "label": "t:settings.overlay_color",
-      "alpha": true,
-      "default": "#00000026",
-      "visible_if": "{{ section.settings.toggle_overlay }}"
-    },
-    {
-      "type": "select",
-      "id": "overlay_style",
-      "label": "t:settings.overlay_style",
-      "options": [
-        {
-          "value": "solid",
-          "label": "t:options.solid"
-        },
-        {
-          "value": "gradient",
-          "label": "t:options.gradient"
-        }
-      ],
-      "default": "solid",
-      "visible_if": "{{ section.settings.toggle_overlay }}"
-    },
-    {
-      "type": "select",
-      "id": "gradient_direction",
-      "label": "t:settings.gradient_direction",
-      "options": [
-        {
-          "value": "to top",
-          "label": "t:options.up"
-        },
-        {
-          "value": "to bottom",
-          "label": "t:options.down"
-        }
-      ],
-      "default": "to top",
-      "visible_if": "{{ section.settings.toggle_overlay and section.settings.overlay_style == 'gradient' }}"
-    },
-    {
-      "type": "header",
-      "content": "t:content.borders"
-    },
-    {
-      "type": "select",
-      "id": "border",
-      "label": "t:settings.style",
-      "options": [
-        {
-          "value": "none",
-          "label": "t:options.none"
-        },
-        {
-          "value": "solid",
-          "label": "t:options.solid"
-        }
-      ],
-      "default": "none"
-    },
-    {
-      "type": "range",
-      "id": "border_width",
-      "min": 0,
-      "max": 100,
-      "step": 1,
-      "unit": "px",
-      "label": "t:settings.thickness",
-      "default": 1,
-      "visible_if": "{{ section.settings.border != 'none' }}"
-    },
-    {
-      "type": "range",
-      "id": "border_opacity",
-      "min": 0,
-      "max": 100,
-      "step": 1,
-      "unit": "%",
-      "label": "t:settings.opacity",
-      "default": 100,
-      "visible_if": "{{ section.settings.border != 'none' }}"
-    },
-    {
-      "type": "color",
-      "id": "border_color",
-      "label": "t:settings.color",
-      "placeholder": "t:settings.default",
-      "visible_if": "{{ section.settings.border != 'none' }}"
-    },
-    {
-      "type": "range",
-      "id": "border_radius",
-      "label": "t:settings.border_radius",
-      "min": 0,
-      "max": 100,
-      "step": 1,
-      "unit": "px",
-      "default": 0
     },
     {
       "type": "header",
@@ -482,7 +313,7 @@
       "max": 100,
       "step": 1,
       "unit": "px",
-      "default": 0
+      "default": 44
     },
     {
       "type": "range",
@@ -492,23 +323,17 @@
       "max": 100,
       "step": 1,
       "unit": "px",
-      "default": 0
+      "default": 46
     }
   ],
   "presets": [
     {
-      "name": "Artist banner",
+      "name": "Artist hero",
       "settings": {
-        "content_direction": "column",
-        "horizontal_alignment_flex_direction_column": "center",
-        "vertical_alignment_flex_direction_column": "center",
-        "gap": 80,
-        "section_width": "page-width",
-        "section_height": "medium",
-        "image_source": "collection",
-        "background_image_position": "cover",
-        "padding-block-start": 48,
-        "padding-block-end": 80
+        "show_breadcrumbs": true,
+        "show_bio_link": true,
+        "show_count": true,
+        "show_description": true
       }
     }
   ]
